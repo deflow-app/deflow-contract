@@ -1,0 +1,22 @@
+{
+  "name": "flow-call-contract",
+  "version": "1.0.0",
+  "description": "",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "aldi",
+  "license": "MIT",
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.2.0",
+    "@truffle/hdwallet-provider": "^1.2.2",
+    "solidity-bytes-utils": "^0.8.0",
+    "truffle-contract-size": "^2.0.1"
+  },
+  "devDependencies": {
+    "truffle-plugin-verify": "^0.5.10"
+  }
+}

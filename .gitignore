@@ -1,0 +1,8 @@
+/.secret
+/.secret.teddy
+/.apikey.bscscan
+/.apikey.hecoinfo
+/yarn.lock
+/build
+/node_modules
+/target
