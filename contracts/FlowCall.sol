@@ -7,10 +7,15 @@ import "../node_modules/@openzeppelin/contracts/security/Pausable.sol";
 import "../node_modules/solidity-bytes-utils/contracts/BytesLib.sol";
 import "./utils/Equation.sol";
 import "./interface/ITokenReceiver.sol";
+import "../node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "../node_modules/@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract FlowCall is Ownable, Pausable {
     using BytesLib for bytes;
     using Equation for Equation.Node[];
+    using SafeERC20 for IERC20;
+    using SafeMath for uint256;
 
     uint256 public constant MAX_CALL_SEQ = 100;
     uint256 public constant PARAMETER_ID_FOR_TARGET_CONTRACT = 9999999999;
@@ -79,6 +84,14 @@ contract FlowCall is Ownable, Pausable {
         uint256 variableCount,
         SetVariableOperation[] calldata setVariableOperationList
     ) external payable whenNotPaused {
+        _flowCall(callList, variableCount, setVariableOperationList);
+    }
+
+    function _flowCall(
+        CallInfo[] calldata callList,
+        uint256 variableCount,
+        SetVariableOperation[] calldata setVariableOperationList
+    ) private {
         require(callList.length > 0, "FC: at least one call needed");
 
         DataValue[] memory variableList = new DataValue[](variableCount);
@@ -201,8 +214,38 @@ contract FlowCall is Ownable, Pausable {
         }
     }
 
+    function flowCallSafe(
+        CallInfo[] calldata callList,
+        uint256 variableCount,
+        SetVariableOperation[] calldata setVariableOperationList,
+        address[] calldata approvedTokens
+    ) external payable whenNotPaused {
+        uint256[] memory balanceBefore=fetchBalance(approvedTokens);
+        uint256 ethBalanceBefore=address(this).balance.sub(msg.value);
+        _flowCall(callList,variableCount,setVariableOperationList);
+        uint256[] memory balanceAfter=fetchBalance(approvedTokens);
+        uint256 ethBalanceAfter=address(this).balance;
+        for(uint256 i=0;i<balanceBefore.length;i++){
+            if(balanceAfter[i]>balanceBefore[i]){
+                IERC20(approvedTokens[i]).safeTransfer(msg.sender,balanceAfter[i].sub(balanceBefore[i]));
+            }
+        }
+        if(ethBalanceAfter>ethBalanceBefore){
+            payable(msg.sender).transfer(ethBalanceAfter.sub(ethBalanceBefore));
+        }
+    }
+
+    function fetchBalance(address[] calldata tokens) private view returns (uint256[] memory){
+        uint256[] memory balanceList=new uint256[](tokens.length);
+        for(uint256 i=0;i<tokens.length;i++){
+            balanceList[i]=IERC20(tokens[i]).balanceOf(address(this));
+        }
+        return balanceList;
+    }
+
     function checkContractCall(CallInfo calldata call) private view {
-        require(call.targetContract != tokenReceiver, "RC: forbidden contract");
+        require(call.targetContract != tokenReceiver, "FC: forbidden contract");
+        require(call.targetContract != address(this), "FC: can't call self");
         require(call.callData.length >= 4, "FC: invalid call data");
         bytes memory callData = call.callData;
         bytes4 methodId;
