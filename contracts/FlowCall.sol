@@ -23,6 +23,8 @@ contract FlowCall is Ownable, Pausable {
     uint256 public constant PARAMETER_ID_FOR_TOKEN_AMOUNT = 9999999997;
     address public tokenReceiver;
 
+    error ExternalCallError(uint256 callId);
+
     enum CallType {
         callContract,
         execRevert,
@@ -113,19 +115,15 @@ contract FlowCall is Ownable, Pausable {
                     if (callList[j].callType == CallType.execRevert) {
                         revert("FC: execute revert call");
                     } else if (callList[j].callType == CallType.safeReceive) {
-                         (,address target,,uint256 tokenAmount) = buildCallData(callList[j], variableList);
-                         require(
-                            tokenAmount > 0,
-                            "FC: amount missed"
-                        );
-                        safeReceive(
-                            target,
-                            tokenAmount
-                        );
-                        emit SafeReceiveCall(
-                            target,
-                            tokenAmount
-                        );
+                        (
+                            ,
+                            address target,
+                            ,
+                            uint256 tokenAmount
+                        ) = buildCallData(callList[j], variableList);
+                        require(tokenAmount > 0, "FC: amount missed");
+                        safeReceive(target, tokenAmount);
+                        emit SafeReceiveCall(target, tokenAmount);
                     } else if (callList[j].callType == CallType.callContract) {
                         checkContractCall(callList[j]);
 
@@ -133,11 +131,14 @@ contract FlowCall is Ownable, Pausable {
                             bytes memory callData,
                             address target,
                             uint256 sendEthValue,
+
                         ) = buildCallData(callList[j], variableList);
                         (bool success, bytes memory returnData) = target.call{
                             value: sendEthValue
                         }(callData);
-                        require(success, "FC: external call failed");
+                        if(!success){
+                            revert ExternalCallError(j);
+                        }
                         emit ExternalCall(
                             target,
                             sendEthValue,
@@ -158,8 +159,8 @@ contract FlowCall is Ownable, Pausable {
                                 //build return values
                                 require(
                                     setVariableOperationList[k]
-                                    .valueExpression
-                                    .length > 0,
+                                        .valueExpression
+                                        .length > 0,
                                     "FC: invalid value expression"
                                 );
                                 require(
@@ -169,7 +170,7 @@ contract FlowCall is Ownable, Pausable {
                                 );
                                 require(
                                     setVariableOperationList[k]
-                                    .variableIdToSet < variableCount,
+                                        .variableIdToSet < variableCount,
                                     "FC: invalid variableIdToSet"
                                 );
                                 uint256[] memory returnValues = new uint256[](
@@ -198,8 +199,7 @@ contract FlowCall is Ownable, Pausable {
                                     variableList[
                                         setVariableOperationList[k]
                                             .variableIdToSet
-                                    ]
-                                        .value
+                                    ].value
                                 );
                                 variableList = afterSetVariable(
                                     k,
@@ -220,25 +220,32 @@ contract FlowCall is Ownable, Pausable {
         SetVariableOperation[] calldata setVariableOperationList,
         address[] calldata approvedTokens
     ) external payable whenNotPaused {
-        uint256[] memory balanceBefore=fetchBalance(approvedTokens);
-        uint256 ethBalanceBefore=address(this).balance.sub(msg.value);
-        _flowCall(callList,variableCount,setVariableOperationList);
-        uint256[] memory balanceAfter=fetchBalance(approvedTokens);
-        uint256 ethBalanceAfter=address(this).balance;
-        for(uint256 i=0;i<balanceBefore.length;i++){
-            if(balanceAfter[i]>balanceBefore[i]){
-                IERC20(approvedTokens[i]).safeTransfer(msg.sender,balanceAfter[i].sub(balanceBefore[i]));
+        uint256[] memory balanceBefore = fetchBalance(approvedTokens);
+        uint256 ethBalanceBefore = address(this).balance.sub(msg.value);
+        _flowCall(callList, variableCount, setVariableOperationList);
+        uint256[] memory balanceAfter = fetchBalance(approvedTokens);
+        uint256 ethBalanceAfter = address(this).balance;
+        for (uint256 i = 0; i < balanceBefore.length; i++) {
+            if (balanceAfter[i] > balanceBefore[i]) {
+                IERC20(approvedTokens[i]).safeTransfer(
+                    msg.sender,
+                    balanceAfter[i].sub(balanceBefore[i])
+                );
             }
         }
-        if(ethBalanceAfter>ethBalanceBefore){
+        if (ethBalanceAfter > ethBalanceBefore) {
             payable(msg.sender).transfer(ethBalanceAfter.sub(ethBalanceBefore));
         }
     }
 
-    function fetchBalance(address[] calldata tokens) private view returns (uint256[] memory){
-        uint256[] memory balanceList=new uint256[](tokens.length);
-        for(uint256 i=0;i<tokens.length;i++){
-            balanceList[i]=IERC20(tokens[i]).balanceOf(address(this));
+    function fetchBalance(address[] calldata tokens)
+        private
+        view
+        returns (uint256[] memory)
+    {
+        uint256[] memory balanceList = new uint256[](tokens.length);
+        for (uint256 i = 0; i < tokens.length; i++) {
+            balanceList[i] = IERC20(tokens[i]).balanceOf(address(this));
         }
         return balanceList;
     }
