@@ -17,7 +17,7 @@ module.exports = async function(_deployer,_network) {
   else if(_network=="hecomainnet"){
     await _deployer.deploy(flowCall);
     const flowCallInstance=await flowCall.deployed();
-    await _deployer.deploy(tokenReceiver);
+    // await _deployer.deploy(tokenReceiver);
     const tokenReceiverInstance=await tokenReceiver.deployed();
     await flowCallInstance.setTokenReceiver(tokenReceiverInstance.address);
     await tokenReceiverInstance.setFlowCallAddress(flowCallInstance.address);

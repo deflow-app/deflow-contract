@@ -56,7 +56,8 @@ contract FlowCall is Ownable, Pausable {
 
     enum TriggerType {
         afterCall,
-        afterSetVariableOperation
+        afterSetVariableOperation,
+        beforeAll
     }
 
     struct SetVariableOperation {
@@ -89,6 +90,43 @@ contract FlowCall is Ownable, Pausable {
         _flowCall(callList, variableCount, setVariableOperationList);
     }
 
+    function beforeAll(DataValue[] memory variableList,SetVariableOperation[] calldata setVariableOperationList) 
+        private returns(DataValue[] memory){
+        for(uint256 i=0;i<setVariableOperationList.length;i++){
+            if(setVariableOperationList[i].triggerType==TriggerType.beforeAll){
+                require(
+                    setVariableOperationList[i]
+                        .valueExpression
+                        .length > 0,
+                    "FC: invalid value expression"
+                );
+                require(
+                    setVariableOperationList[i]
+                        .variableIdToSet < variableList.length,
+                    "FC: invalid variableIdToSet"
+                );
+                Equation.Node[] memory equation = Equation.init(
+                    setVariableOperationList[i].valueExpression
+                );
+                uint256[] memory xValues = toXValues(variableList);
+                variableList[
+                    setVariableOperationList[i].variableIdToSet
+                ] = DataValue(
+                    true,
+                    bytes32(equation.calculate(xValues))
+                );
+                emit SetVariable(
+                    setVariableOperationList[i].variableIdToSet,
+                    variableList[
+                        setVariableOperationList[i]
+                            .variableIdToSet
+                    ].value
+                );
+            }
+        }
+        return variableList;
+    }
+
     function _flowCall(
         CallInfo[] calldata callList,
         uint256 variableCount,
@@ -97,6 +135,8 @@ contract FlowCall is Ownable, Pausable {
         require(callList.length > 0, "FC: at least one call needed");
 
         DataValue[] memory variableList = new DataValue[](variableCount);
+
+        variableList=beforeAll(variableList, setVariableOperationList);
 
         for (uint256 i = 0; i <= MAX_CALL_SEQ; i++) {
             for (uint256 j = 0; j < callList.length; j++) {
