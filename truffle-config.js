@@ -94,6 +94,14 @@ module.exports = {
       timeoutBlocks: 200,
       gasPrice: 11000000000,//10gwei
       skipDryRun: true
+    },
+    bscmainnet: {
+      provider: () => new HDWalletProvider(mnemonic_teddy, `https://bsc-dataseed4.ninicoin.io`),
+      network_id: 56,
+      confirmations: 10,
+      timeoutBlocks: 200,
+      gasPrice: 5000000000,//5gwei
+      skipDryRun: true
     }
   },
 

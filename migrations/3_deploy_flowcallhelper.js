@@ -6,7 +6,8 @@ module.exports = async function(_deployer,_network) {
     const flowCallHelperInstance = await flowCallHelper.deployed();
   }
   else if(_network=="bscmainnet"){
-    
+    await _deployer.deploy(flowCallHelper);
+    const flowCallHelperInstance = await flowCallHelper.deployed();
   }
   else if(_network=="hecomainnet"){
     await _deployer.deploy(flowCallHelper);
